@@ -113,29 +113,28 @@ void doit(int fd)
 void clienterror(int fd, char* cause, char* errnum, char* shortmsg, char* longmsg)
 {
     char buf[MAXLINE], body[MAXBUF];
+    size_t body_len = 0;
 
-    // construct response body
-    char *p = body;
-    p += sprintf(p, "<html>\r\n");
-    p += sprintf(p, "<head><title>Tiny Error</title></head>\r\n");
-    p += sprintf(p, "<body>\r\n");
-    p += sprintf(p, "<h1>%s: %s</h1>\r\n", errnum, shortmsg);
-    p += sprintf(p, "<p>%s: %s</p>\r\n", longmsg, cause);
-    p += sprintf(p, "<hr>\r\n");
-    p += sprintf(p, "<small>The Tiny Web Server</small>\r\n");
-    p += sprintf(p, "</body>\r\n</html>\r\n");
-    // user snprintf() to avoid buffer overflow
-    // size_t len = 0;
-    // len += snprintf(body+len, sizeof(body)-len, "<html>...")
+    // construct response body safely
+    body_len += snprintf(body + body_len, MAXBUF - body_len, "<html>\r\n");
+    body_len += snprintf(body + body_len, MAXBUF - body_len, "<head><title>Tiny Error</title></head>\r\n");
+    body_len += snprintf(body + body_len, MAXBUF - body_len, "<body>\r\n");
+    body_len += snprintf(body + body_len, MAXBUF - body_len, "<h1>%s: %s</h1>\r\n", errnum, shortmsg);
+    body_len += snprintf(body + body_len, MAXBUF - body_len, "<p>%s: %s</p>\r\n", longmsg, cause);
+    body_len += snprintf(body + body_len, MAXBUF - body_len, "<hr>\r\n");
+    body_len += snprintf(body + body_len, MAXBUF - body_len, "<small>The Tiny Web Server</small>\r\n");
+    body_len += snprintf(body + body_len, MAXBUF - body_len, "</body>\r\n</html>\r\n");
 
-    sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);   // response line
+    // Send response headers safely
+    snprintf(buf, MAXLINE, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
     Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Content-type: text/html\r\n");            // response header
+    snprintf(buf, MAXLINE, "Content-type: text/html\r\n");
     Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));  // end with a empty line \r\n
+    snprintf(buf, MAXLINE, "Content-length: %zu\r\n\r\n", body_len);
     Rio_writen(fd, buf, strlen(buf));
 
-    Rio_writen(fd, body, strlen(body));
+    // Send response body
+    Rio_writen(fd, body, body_len);
 }
 
 void read_requesthdrs(rio_t* rp)
@@ -159,24 +158,22 @@ int parse_uri(char* uri, char* filename, char* cgiargs)
     // strstr(a, b): find b in a, return ptr or NULL
     if (!strstr(uri, "cgi-bin")) {  // static content
         strcpy(cgiargs, "");
-        strcpy(filename, "public");
-        strcat(filename, uri);
-        
         if (uri[strlen(uri)-1] == '/') {
-            strcat(filename, "index.html");
+            snprintf(filename, MAXLINE, "public%sindex.html", uri);
+        } else {
+            snprintf(filename, MAXLINE, "public%s", uri);
         }
         return 1;
     } else {    // dynamic content
         // strchr(a, c): find c in a, return ptr
         ptr = strchr(uri, '?');
         if (ptr) {
-            strcpy(cgiargs, ptr+1);
+            snprintf(cgiargs, MAXLINE, "%s", ptr+1);
             *ptr = '\0';
         } else {
-            strcpy(cgiargs, "");    // empty argument
+            strcpy(cgiargs, "");    // No overflow risk
         }
-        strcpy(filename, ".");
-        strcat(filename, uri);
+        snprintf(filename, MAXLINE, ".%s", uri);
         return 0;
     }
 }
@@ -184,16 +181,16 @@ int parse_uri(char* uri, char* filename, char* cgiargs)
 void serve_static(int fd, char* filename, int filesize)
 {
     char filetype[MAXLINE], buf[MAXBUF];
+    size_t header_len = 0;
     get_filetype(filename, filetype);
 
-    // send response header
-    char* p = buf;
-    p += sprintf(p, "HTTP/1.0 200 OK\r\n");
-    p += sprintf(p, "Server: Tiny Web Server\r\n");
-    p += sprintf(p, "Connection: close\r\n");
-    p += sprintf(p, "Content-length: %d\r\n", filesize);
-    p += sprintf(p, "Content-type: %s\r\n\r\n", filetype);
-    Rio_writen(fd, buf, strlen(buf));
+    // send response header safely
+    header_len += snprintf(buf + header_len, MAXBUF - header_len, "HTTP/1.0 200 OK\r\n");
+    header_len += snprintf(buf + header_len, MAXBUF - header_len, "Server: Tiny Web Server\r\n");
+    header_len += snprintf(buf + header_len, MAXBUF - header_len, "Connection: close\r\n");
+    header_len += snprintf(buf + header_len, MAXBUF - header_len, "Content-length: %d\r\n", filesize);
+    header_len += snprintf(buf + header_len, MAXBUF - header_len, "Content-type: %s\r\n\r\n", filetype);
+    Rio_writen(fd, buf, header_len);
 
     printf("[[ Response headers ]]:\n");
     printf("%s", buf);
@@ -230,9 +227,9 @@ void serve_dynamic(int fd, char* filename, char* cgiargs)
     char buf[MAXLINE];
     char* emptylist[] = { NULL };
     // send partial header, the remaining part is sent by the cgi program
-    sprintf(buf, "HTTP/1.0 200 OK\r\n");
+    snprintf(buf, MAXLINE, "HTTP/1.0 200 OK\r\n");
     Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Server: Tiny Web Server\r\n");
+    snprintf(buf, MAXLINE, "Server: Tiny Web Server\r\n");
     Rio_writen(fd, buf, strlen(buf));
 
     if (Fork() == 0) {  // child

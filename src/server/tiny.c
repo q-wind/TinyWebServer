@@ -17,6 +17,7 @@ void get_filetype(char* filename, char* filetype);
 
 // chapter11 homework
 void echo(int fd);      // 11.6
+void sigchild_handler(int sig);     // 11.8
 
 
 int main(int argc, char** argv){
@@ -29,6 +30,8 @@ int main(int argc, char** argv){
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;     // large enough to hold any address
     char hostname[MAXLINE], port[MAXLINE];
+
+    Signal(SIGCHLD, sigchild_handler);
 
     listenfd = Open_listenfd(argv[1]);
     while (1) {
@@ -231,7 +234,7 @@ void serve_dynamic(int fd, char* filename, char* cgiargs)
         Dup2(fd, STDOUT_FILENO);    // redirect stdout to client socket
         Execve(filename, emptylist, environ);   // run cgi program
     }
-    Wait(NULL); // parent waits for and reaps child
+    // parent reaps child in sigchld_handle
 }
 
 void echo(int fd)
@@ -246,4 +249,17 @@ void echo(int fd)
             break;
         Rio_writen(fd, buf, n);
     }
+}
+
+void sigchild_handler(int sig)
+{
+    int olderrno = errno;
+    int status;
+    pid_t pid;
+    // -1: wait for any child, WNOHANG: if no child ready return 0
+    // do not use Waitpid() in csapp.c, since no children return -1, Waitpid() considers it as an error
+    while ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+        // Reap child
+    }
+    errno = olderrno;
 }

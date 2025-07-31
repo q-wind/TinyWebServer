@@ -1,15 +1,25 @@
 ## CSAPP-3e Tiny Web Server
 
+### Description
+
+- Now `tiny` is a simple iterative server
+- Serve static content: files placed in `public/`
+- Serve dynamic content: executable files in `cgi-bin/`
+
 ### Build
+
+- Main server executable `tiny` will be placed in: `./bin/`
+- CGI executable, such as `add`, will be placed in: `./cgi-bin/`
 
 ```bash
 mkdir build
-cd build
-cmake ..
-make
+cmake -S . -B build
+cmake --build build
 ```
 
 ### Run
+
+Make sure the `public` and `cgi-bin` directories in the current running directory
 
 ```bash
 ./bin/tiny <port>
@@ -17,8 +27,10 @@ make
 
 ### Test
 
+Remember a new empty line `\r\n` after the request line
+
 ```bash
-telnet localhost 80
+telnet localhost <port>
 
 GET / HTTP/1.0
 

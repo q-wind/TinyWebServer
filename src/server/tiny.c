@@ -70,6 +70,12 @@ void doit(int fd)
         return; 
     }
 
+    if (strstr(uri, "..")) {
+        clienterror(fd, uri, "403", "Forbidden", 
+                    "Path traversal is not allowed, including \"..\" in");
+        return;
+    }
+
     // ignore request header
     read_requesthdrs(&rio);
 

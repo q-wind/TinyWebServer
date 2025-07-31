@@ -206,17 +206,24 @@ void serve_static(int fd, char* filename, int filesize)
 // derive file type from filename
 void get_filetype(char* filename, char* filetype)
 {
-    if (strstr(filename, ".html"))
+    // get last . position
+    char* ext = strrchr(filename, '.');
+    if (!ext) {
+        strcpy(filetype, "text/plain");
+        return;
+    }
+    
+    if (strcmp(ext, ".html") == 0)
         strcpy(filetype, "text/html");
-    else if (strstr(filename, ".png"))
+    else if (strcmp(ext, ".png") == 0)
         strcpy(filetype, "image/png");
-    else if (strstr(filename, ".gif"))
+    else if (strcmp(ext, ".gif") == 0)
         strcpy(filetype, "image/gif");
-    else if (strstr(filename, ".jpg"))
+    else if (strcmp(ext, ".jpg") == 0)
         strcpy(filetype, "image/jpeg");
-    else if (strstr(filename, ".flac"))
+    else if (strcmp(ext, ".flac") == 0)
         strcpy(filetype, "audio/flac");
-    else if (strstr(filename, ".mp4"))
+    else if (strcmp(ext, ".mp4") == 0)
         strcpy(filetype, "video/mp4");
     else
         strcpy(filetype, "text/plain");

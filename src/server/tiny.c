@@ -15,6 +15,10 @@ void serve_static(int fd, char* filename, int filesize);
 void serve_dynamic(int fd, char* filename,  char* cgiargs);
 void get_filetype(char* filename, char* filetype);
 
+// chapter11 homework
+void echo(int fd);      // 11.6
+
+
 int main(int argc, char** argv){
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <port>\n", argv[0]);
@@ -36,7 +40,8 @@ int main(int argc, char** argv){
 
         // do work
         doit(connfd);
-        
+        // echo(connfd);
+
         Close(connfd);
     }
 }
@@ -128,6 +133,7 @@ void read_requesthdrs(rio_t* rp)
 {
     char buf[MAXLINE];
     Rio_readlineb(rp, buf, MAXLINE);
+    printf("%s", buf);
     while (strcmp(buf, "\r\n") != 0) {
         Rio_readlineb(rp, buf, MAXLINE);
         printf("%s", buf);
@@ -222,4 +228,18 @@ void serve_dynamic(int fd, char* filename, char* cgiargs)
         Execve(filename, emptylist, environ);   // run cgi program
     }
     Wait(NULL); // parent waits for and reaps child
+}
+
+void echo(int fd)
+{
+    ssize_t n;
+    rio_t rio;
+    char buf[MAXLINE];
+    
+    Rio_readinitb(&rio, fd);
+    while ((n = Rio_readlineb(&rio, buf, MAXLINE)) != 0) {
+        if (strcmp(buf, "\r\n") == 0)
+            break;
+        Rio_writen(fd, buf, n);
+    }
 }

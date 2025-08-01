@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -9,7 +10,7 @@
 #include "util.h"
 
 void doit(int fd);
-void read_requesthdrs(rio_t* rp);
+int read_requesthdrs(rio_t* rp, char* method);
 int parse_uri(char* uri, char* filename, char* cgiargs);
 void serve_static(int fd, char* filename, int filesize, char* method);
 void serve_dynamic(int fd, char* filename,  char* cgiargs, char* method);
@@ -63,8 +64,9 @@ void doit(int fd)
     printf("%s", buf);
     sscanf(buf, "%s %s %s", method, uri, version);
 
-    // now support GET only
-    if ((strcasecmp(method, "GET") != 0) && (strcasecmp(method, "HEAD") != 0)) {
+    if ((strcasecmp(method, "GET") != 0) && 
+        (strcasecmp(method, "HEAD") != 0) &&
+        (strcasecmp(method, "POST") != 0)) {
         clienterror(fd, method, "501", "Not implemented",
                     "Tiny dose not implement this method");
         return; 
@@ -76,10 +78,10 @@ void doit(int fd)
         return;
     }
 
-    // ignore request header
-    read_requesthdrs(&rio);
-
-    // parse URI from GET request
+    // read request headers
+    int content_len = read_requesthdrs(&rio, method);
+    Rio_readnb(&rio, buf, content_len);
+    
     int is_static;      // serve-static or serve-dynamic
     char filename[MAXLINE], cgiargs[MAXLINE];
     struct stat statbuf;
@@ -97,6 +99,12 @@ void doit(int fd)
             clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read this file");
             return;
         }
+        // not allow POST for static content
+        if (strcasecmp(method, "POST") == 0) {
+            clienterror(fd, filename, "405", "Method Not Allowed", 
+                        "Tiny does not allow POST for static content");
+            return;
+        }
         serve_static(fd, filename, statbuf.st_size, method);
     } else {            // serve dynamic content
         // not a regular file or user can't execute
@@ -104,21 +112,30 @@ void doit(int fd)
             clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run this CGI program");
             return;
         }
-        serve_dynamic(fd, filename, cgiargs, method);
+        if (strcasecmp(method, "POST") == 0) {
+            serve_dynamic(fd, filename, buf, method);   // POST, pass by request body
+        } else {
+            serve_dynamic(fd, filename, cgiargs, method);
+        }
     }
 
 }
 
-void read_requesthdrs(rio_t* rp)
+int read_requesthdrs(rio_t* rp, char* method)
 {
     char buf[MAXLINE];
+    int is_post = (strcasecmp(method, "POST") == 0);
+    int content_len = 0;
     Rio_readlineb(rp, buf, MAXLINE);
     printf("%s", buf);
     while (strcmp(buf, "\r\n") != 0) {
+        if (is_post && strncasecmp(buf, "Content-Length:", 15) == 0) {
+            content_len = atoi(buf + 15);
+        }
         Rio_readlineb(rp, buf, MAXLINE);
         printf("%s", buf);
     }
-    return;
+    return content_len;
 }
 
 // Assumption: 

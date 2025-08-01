@@ -36,14 +36,14 @@ int main(void) {
     size_t len = 0;
     if (!n1_set || !n2_set) {
         // if not set, return 400 Bad Request
-        printf("Status: 400 Bad Request\r\n");
+        printf("Status: HTTP/1.0 400 Bad Request\r\n");
         len += snprintf(content+len, MAXLINE-len, "<head><title>Tiny Error</title></head>\r\n");
         len += snprintf(content+len, MAXLINE-len, "<h1>400 Bad Request</h1>\r\n");
         len += snprintf(content+len, MAXLINE-len, 
                     "<p>Missing or invalid parameters. Usage: ?first=1&second=2</p>\r\n");
 
     } else {
-        printf("Status: 200 OK\r\n");
+        printf("Status: HTTP/1.0 200 OK\r\n");
         len += snprintf(content+len, MAXLINE-len, "<head><title>Tiny Web Server</title></head>\r\n");
         len += snprintf(content+len, MAXLINE-len, "<h1>Tiny CGI add</h1>\r\n");
         len += snprintf(content+len, MAXLINE-len, 

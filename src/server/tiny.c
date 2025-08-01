@@ -1,12 +1,3 @@
-#include <asm-generic/errno-base.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #include "csapp.h"
 #include "util.h"
 
@@ -20,7 +11,6 @@ void get_filetype(char* filename, char* filetype);
 // chapter11 homework
 void echo(int fd);      // 11.6
 void sigchild_handler(int sig);     // 11.8
-void Wrap_Rio_Writen(int fd, char* buf, size_t n);  // 11.13
 
 int main(int argc, char** argv){
     if (argc != 2) {
@@ -280,17 +270,4 @@ void sigchild_handler(int sig)
         // Reap child
     }
     errno = olderrno;
-}
-
-void Wrap_Rio_Writen(int fd, char* buf, size_t n)
-{
-    if (rio_writen(fd, buf, n) == -1) {
-        if (errno == EPIPE) {
-            // SIGPIPE, client closed connection
-            fprintf(stderr, "EPIPE: client closed connection\n");
-            return;
-        } else {
-            unix_error("Wrap_Rio_Writen error");
-        }
-    }
 }

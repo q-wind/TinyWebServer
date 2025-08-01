@@ -1,6 +1,19 @@
 #include "util.h"
 #include "csapp.h"
 
+void Wrap_Rio_Writen(int fd, char* buf, size_t n)
+{
+    if (rio_writen(fd, buf, n) == -1) {
+        if (errno == EPIPE) {
+            // SIGPIPE, client closed connection
+            fprintf(stderr, "EPIPE: client closed connection\n");
+            return;
+        } else {
+            unix_error("Wrap_Rio_Writen error");
+        }
+    }
+}
+
 // wrap status code and message into response
 void clienterror(int fd, char* cause, char* errnum, char* shortmsg, char* longmsg)
 {
@@ -18,13 +31,12 @@ void clienterror(int fd, char* cause, char* errnum, char* shortmsg, char* longms
     body_len += snprintf(body + body_len, MAXBUF - body_len, "</body>\r\n</html>\r\n");
 
     // Send response headers safely
-    snprintf(buf, MAXLINE, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
-    Rio_writen(fd, buf, strlen(buf));
-    snprintf(buf, MAXLINE, "Content-type: text/html\r\n");
-    Rio_writen(fd, buf, strlen(buf));
-    snprintf(buf, MAXLINE, "Content-length: %zu\r\n\r\n", body_len);
-    Rio_writen(fd, buf, strlen(buf));
+    size_t buf_len = 0;
+    buf_len += snprintf(buf+buf_len, MAXLINE-buf_len, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
+    buf_len += snprintf(buf+buf_len, MAXLINE-buf_len, "Content-type: text/html\r\n");
+    buf_len += snprintf(buf+buf_len, MAXLINE-buf_len, "Content-length: %zu\r\n\r\n", body_len);
+    Wrap_Rio_Writen(fd, buf, buf_len);
 
     // Send response body
-    Rio_writen(fd, body, body_len);
+    Wrap_Rio_Writen(fd, body, body_len);
 }

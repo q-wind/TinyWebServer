@@ -1,3 +1,4 @@
+#include <asm-generic/errno-base.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,7 +20,7 @@ void get_filetype(char* filename, char* filetype);
 // chapter11 homework
 void echo(int fd);      // 11.6
 void sigchild_handler(int sig);     // 11.8
-
+void Wrap_Rio_Writen(int fd, char* buf, size_t n);  // 11.13
 
 int main(int argc, char** argv){
     if (argc != 2) {
@@ -33,6 +34,7 @@ int main(int argc, char** argv){
     char hostname[MAXLINE], port[MAXLINE];
 
     Signal(SIGCHLD, sigchild_handler);
+    Signal(SIGPIPE, SIG_IGN);   // ignore SIGPIPE
 
     listenfd = Open_listenfd(argv[1]);
     while (1) {
@@ -179,7 +181,7 @@ void serve_static(int fd, char* filename, int filesize, char* method)
     header_len += snprintf(buf + header_len, MAXBUF - header_len, "Connection: close\r\n");
     header_len += snprintf(buf + header_len, MAXBUF - header_len, "Content-length: %d\r\n", filesize);
     header_len += snprintf(buf + header_len, MAXBUF - header_len, "Content-type: %s\r\n\r\n", filetype);
-    Rio_writen(fd, buf, header_len);
+    Wrap_Rio_Writen(fd, buf, header_len);
 
     printf("[[ Response headers ]]:\n");
     printf("%s", buf);
@@ -204,7 +206,7 @@ void serve_static(int fd, char* filename, int filesize, char* method)
     }
     ssize_t n = Rio_readn(srcfd, srcp, filesize);
     Close(srcfd);
-    Rio_writen(fd, srcp, n);
+    Wrap_Rio_Writen(fd, srcp, n);
     free(srcp);
 }
 
@@ -239,10 +241,10 @@ void serve_dynamic(int fd, char* filename, char* cgiargs, char* method)
     char buf[MAXLINE];
     char* emptylist[] = { NULL };
     // send partial header, the remaining part is sent by the cgi program
-    snprintf(buf, MAXLINE, "HTTP/1.0 200 OK\r\n");
-    Rio_writen(fd, buf, strlen(buf));
-    snprintf(buf, MAXLINE, "Server: Tiny Web Server\r\n");
-    Rio_writen(fd, buf, strlen(buf));
+    int hd_len = 0;
+    hd_len += snprintf(buf+hd_len, MAXLINE-hd_len, "HTTP/1.0 200 OK\r\n");
+    hd_len += snprintf(buf+hd_len, MAXLINE-hd_len, "Server: Tiny Web Server\r\n");
+    Wrap_Rio_Writen(fd, buf, hd_len);
 
     if (Fork() == 0) {  // child
         setenv("QUERY_STRING", cgiargs, 1);     // pass arguments
@@ -263,7 +265,7 @@ void echo(int fd)
     while ((n = Rio_readlineb(&rio, buf, MAXLINE)) != 0) {
         if (strcmp(buf, "\r\n") == 0)
             break;
-        Rio_writen(fd, buf, n);
+        Wrap_Rio_Writen(fd, buf, n);
     }
 }
 
@@ -278,4 +280,17 @@ void sigchild_handler(int sig)
         // Reap child
     }
     errno = olderrno;
+}
+
+void Wrap_Rio_Writen(int fd, char* buf, size_t n)
+{
+    if (rio_writen(fd, buf, n) == -1) {
+        if (errno == EPIPE) {
+            // SIGPIPE, client closed connection
+            fprintf(stderr, "EPIPE: client closed connection\n");
+            return;
+        } else {
+            unix_error("Wrap_Rio_Writen error");
+        }
+    }
 }

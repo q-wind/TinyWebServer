@@ -27,11 +27,12 @@ Make sure the `public` and `cgi-bin` directories in the current running director
 
 ### Test
 
-Remember a new empty line `\r\n` after the request line
-
 ```bash
-telnet localhost <port>
+# GET
+curl localhost:<port>/index.html
 
-GET / HTTP/1.0
-
+# POST
+curl -X POST localhost:9876/cgi-bin/add \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "first=1&second=2"
 ```

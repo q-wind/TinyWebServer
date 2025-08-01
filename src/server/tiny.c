@@ -197,10 +197,22 @@ void serve_static(int fd, char* filename, int filesize)
 
     // send file
     int srcfd = Open(filename, O_RDONLY, 0);
-    char* srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
-    Close(srcfd);       // can close fd after mmap
-    Rio_writen(fd, srcp, filesize);
-    Munmap(srcp, filesize);
+    
+    // char* srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+    // Close(srcfd);       // can close fd after mmap
+    // Rio_writen(fd, srcp, filesize);
+    // Munmap(srcp, filesize);
+
+    char* srcp = (char*)malloc(filesize);
+    if (srcp == NULL) {
+        fprintf(stderr, "serve_static(): Malloc failed\n");
+        Close(srcfd);
+        return;
+    }
+    ssize_t n = Rio_readn(srcfd, srcp, filesize);
+    Close(srcfd);
+    Rio_writen(fd, srcp, n);
+    free(srcp);
 }
 
 // derive file type from filename

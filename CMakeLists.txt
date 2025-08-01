@@ -16,6 +16,7 @@ include_directories(include)
 set(SERVER_SRC_FILES
     src/server/tiny.c
     src/server/csapp.c
+    src/server/util.c
 )
 add_executable(tiny ${SERVER_SRC_FILES})
 
@@ -28,6 +29,8 @@ set_target_properties(tiny PROPERTIES
 # --- CGI Program Target ---
 set(CGI_ADD_SRC_FILES
     src/cgi/add.c
+    src/server/util.c
+    src/server/csapp.c
 )
 add_executable(add ${CGI_ADD_SRC_FILES})
 

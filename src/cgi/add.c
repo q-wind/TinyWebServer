@@ -1,48 +1,47 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include "csapp.h"
+#include "util.h"
 
 /* 
- * add.c - a simple CGI program that adds two numbers
- * passed in the QUERY_STRING environment variable.
+ * add.c - a CGI program: adds two numbers
+ * QUERY_STRING: first=1&second=2
  */
 int main(void) {
     char *buf, *p;
-    char arg1[1024], arg2[1024], content[1024];
+    char content[MAXLINE];
     int n1=0, n2=0;
 
     /* Extract the two arguments */
     if ((buf = getenv("QUERY_STRING")) != NULL) {
         p = strchr(buf, '&');
-        if (p == NULL) {
-            // If only one argument, handle it gracefully or set a default for the second
-            strcpy(arg1, buf);
-            n1 = atoi(arg1);
-            n2 = 0; // Or handle as an error
-        } else {
+        if (p != NULL) {
             *p = '\0';
-            strcpy(arg1, buf);
-            strcpy(arg2, p+1);
-            n1 = atoi(arg1);
-            n2 = atoi(arg2);
+            sscanf(buf, "first=%d", &n1);
+            sscanf(p+1, "second=%d", &n2);
+
+            /* Make the response body */
+            size_t len = 0;
+            len += snprintf(content+len, MAXLINE-len, "<h1>Tiny CGI add</h1>\r\n");
+            len += snprintf(content+len, MAXLINE-len, 
+                                "<p>The answer is: %d + %d = %d\r\n<p>", n1, n2, n1 + n2);
+            len += snprintf(content+len, MAXLINE-len, "<hr>\r\n");
+            len += snprintf(content+len, MAXLINE-len, "<small>The Tiny Web Server</small>\r\n");
+            content[len] = '\0';
+        
+            /* Generate the HTTP response */
+            printf("Connection: close\r\n");
+            printf("Content-length: %d\r\n", (int)strlen(content));
+            printf("Content-type: text/html\r\n\r\n");
+            printf("%s", content);
+            fflush(stdout);
+            exit(0);
         }
     }
 
-    /* Make the response body */
-    sprintf(content, "Welcome to add.com: THE Internet addition portal.\r\n<p>");
-    
-    char temp[256];
-    sprintf(temp, "The answer is: %d + %d = %d\r\n<p>", n1, n2, n1 + n2);
-    strcat(content, temp);
-
-    strcat(content, "Thanks for visiting!\r\n");
-  
-    /* Generate the HTTP response */
-    printf("Connection: close\r\n");
-    printf("Content-length: %d\r\n", (int)strlen(content));
-    printf("Content-type: text/html\r\n\r\n");
-    printf("%s", content);
-    fflush(stdout);
-
+    clienterror(STDOUT_FILENO, buf, "400", "Bad Request", 
+                        "Tiny couldn't parse this request");
     exit(0);
 }

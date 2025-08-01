@@ -11,8 +11,8 @@
 void doit(int fd);
 void read_requesthdrs(rio_t* rp);
 int parse_uri(char* uri, char* filename, char* cgiargs);
-void serve_static(int fd, char* filename, int filesize);
-void serve_dynamic(int fd, char* filename,  char* cgiargs);
+void serve_static(int fd, char* filename, int filesize, char* method);
+void serve_dynamic(int fd, char* filename,  char* cgiargs, char* method);
 void get_filetype(char* filename, char* filetype);
 
 // chapter11 homework
@@ -64,7 +64,7 @@ void doit(int fd)
     sscanf(buf, "%s %s %s", method, uri, version);
 
     // now support GET only
-    if (strcasecmp(method, "GET") != 0) {
+    if ((strcasecmp(method, "GET") != 0) && (strcasecmp(method, "HEAD") != 0)) {
         clienterror(fd, method, "501", "Not implemented",
                     "Tiny dose not implement this method");
         return; 
@@ -97,14 +97,14 @@ void doit(int fd)
             clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read this file");
             return;
         }
-        serve_static(fd, filename, statbuf.st_size);
+        serve_static(fd, filename, statbuf.st_size, method);
     } else {            // serve dynamic content
         // not a regular file or user can't execute
         if (!(S_ISREG(statbuf.st_mode)) || !(S_IXUSR & statbuf.st_mode)) {
             clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run this CGI program");
             return;
         }
-        serve_dynamic(fd, filename, cgiargs);
+        serve_dynamic(fd, filename, cgiargs, method);
     }
 
 }
@@ -150,7 +150,7 @@ int parse_uri(char* uri, char* filename, char* cgiargs)
     }
 }
 
-void serve_static(int fd, char* filename, int filesize)
+void serve_static(int fd, char* filename, int filesize, char* method)
 {
     char filetype[MAXLINE], buf[MAXBUF];
     size_t header_len = 0;
@@ -166,6 +166,10 @@ void serve_static(int fd, char* filename, int filesize)
 
     printf("[[ Response headers ]]:\n");
     printf("%s", buf);
+
+    if (strcasecmp(method, "HEAD") == 0) {
+        return; // HEAD request, no body
+    }
 
     // send file
     int srcfd = Open(filename, O_RDONLY, 0);
@@ -213,7 +217,7 @@ void get_filetype(char* filename, char* filetype)
         strcpy(filetype, "text/plain");
 }
 
-void serve_dynamic(int fd, char* filename, char* cgiargs)
+void serve_dynamic(int fd, char* filename, char* cgiargs, char* method)
 {
     char buf[MAXLINE];
     char* emptylist[] = { NULL };
@@ -224,7 +228,8 @@ void serve_dynamic(int fd, char* filename, char* cgiargs)
     Rio_writen(fd, buf, strlen(buf));
 
     if (Fork() == 0) {  // child
-        setenv("QUERY_STRING", cgiargs, 1); // argument pass by environment
+        setenv("QUERY_STRING", cgiargs, 1);     // pass arguments
+        setenv("REQUEST_METHOD", method, 1);    // pass method
         Dup2(fd, STDOUT_FILENO);    // redirect stdout to client socket
         Execve(filename, emptylist, environ);   // run cgi program
     }

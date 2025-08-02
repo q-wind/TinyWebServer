@@ -5,7 +5,7 @@ void doit(int fd);
 int read_requesthdrs(rio_t* rp, char* method);
 int parse_uri(char* uri, char* filename, char* cgiargs);
 void serve_static(int fd, char* filename, int filesize, char* method);
-void serve_dynamic(int fd, char* filename,  char* cgiargs, char* method);
+void serve_dynamic(int fd, char* filename, char* cgiargs, char* method, int bodylen, char* body);
 void get_filetype(char* filename, char* filetype);
 
 // chapter11 homework
@@ -104,11 +104,7 @@ void doit(int fd)
             clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run this CGI program");
             return;
         }
-        if (strcasecmp(method, "POST") == 0) {
-            serve_dynamic(fd, filename, buf, method);   // POST, pass by request body
-        } else {
-            serve_dynamic(fd, filename, cgiargs, method);
-        }
+        serve_dynamic(fd, filename, cgiargs, method, content_len, buf);       
     }
 
 }
@@ -230,7 +226,7 @@ void get_filetype(char* filename, char* filetype)
         strcpy(filetype, "text/plain");
 }
 
-void serve_dynamic(int fd, char* filename, char* cgiargs, char* method)
+void serve_dynamic(int fd, char* filename, char* cgiargs, char* method, int bodylen, char* body)
 {
     char buf[MAXLINE];
     char* emptylist[] = { NULL };
@@ -240,11 +236,36 @@ void serve_dynamic(int fd, char* filename, char* cgiargs, char* method)
     hd_len += snprintf(buf+hd_len, MAXLINE-hd_len, "Server: Tiny Web Server\r\n");
     Wrap_Rio_Writen(fd, buf, hd_len);
 
+    int pipefd[2];
+    int ispost = (strcasecmp(method, "POST") == 0);
+    if (ispost) {
+        if (pipe(pipefd) < 0) {
+            clienterror(fd, filename, "500", "Internal Server Error", 
+                        "Tiny couldn't create a pipe for POST request");
+            unix_error("pipe error");
+        }
+    }
+
     if (Fork() == 0) {  // child
-        setenv("QUERY_STRING", cgiargs, 1);     // pass arguments
-        setenv("REQUEST_METHOD", method, 1);    // pass method
+        if (ispost) {
+            Close(pipefd[1]);  // close write fd
+            Dup2(pipefd[0], STDIN_FILENO);  // redirect stdin to pipe
+            Close(pipefd[0]);  // close old fd
+        }
+
+        setenv("QUERY_STRING", cgiargs, 1);
+        setenv("REQUEST_METHOD", method, 1);
+        sprintf(buf, "%d", bodylen);
+        setenv("CONTENT_LENGTH", buf, 1);
         Dup2(fd, STDOUT_FILENO);    // redirect stdout to client socket
         Execve(filename, emptylist, environ);   // run cgi program
+    }
+
+    // parent
+    if (ispost) {
+        Close(pipefd[0]);  // close read fd
+        Rio_writen(pipefd[1], body, bodylen);  // write request body to pipe
+        Close(pipefd[1]);  // close write fd
     }
     // parent reaps child in sigchld_handle
 }

@@ -19,18 +19,31 @@ int get_param(const char* query, const char* key, int* val)
 
 /* 
  * add.c - a CGI program: adds two numbers
- * QUERY_STRING: first=1&second=2
+ * parameters: first=1&second=2
+ * if GET/HEAD method is used, passed by QUERY_STRING
+ * if POST method is used, passed by CONTENT_LENGTH, STDIN
  */
 int main(void) {
-    char *buf, *p, *method;
+    char *buf, *p, *method, *contentlen;
     char content[MAXLINE];
     int n1=0, n2=0, n1_set=0, n2_set=0;
 
-    buf = getenv("QUERY_STRING");
     method = getenv("REQUEST_METHOD");
-    if (buf) {
+    contentlen = getenv("CONTENT_LENGTH");
+    if (strcasecmp(method, "POST") == 0) {
+        int len = atoi(contentlen);
+        buf = malloc(len + 1);
+        fread(buf, 1, len, stdin);
+        buf[len] = '\0';
         n1_set = get_param(buf, "first", &n1);
         n2_set = get_param(buf, "second", &n2);
+        free(buf);
+    } else {
+        buf = getenv("QUERY_STRING");
+        if (buf) {
+            n1_set = get_param(buf, "first", &n1);
+            n2_set = get_param(buf, "second", &n2);
+        }
     }
     
     size_t len = 0;
